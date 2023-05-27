@@ -1,0 +1,3 @@
+services:
+  simplenews_automatically_subscribe.services:
+    class: Drupal\simplenews_automatically_subscribe\Service\Synchronizer

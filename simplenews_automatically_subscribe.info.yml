@@ -1,0 +1,5 @@
+name: 'Simplenews automatically subscribe'
+type: module
+description: 'Automatically subscribe users in designated roles to a newsletter list.'
+core: 8.x
+core_version_requirement: ^8 || ^9
