@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * @file
+ * Contains simplenews_automatically_subscribe.module.
+ */
+
+use Drupal\Core\Session\AccountInterface;
 
 /**
  * Implements hook_form_FORM_ID_alter().
@@ -7,86 +13,82 @@
  * Add our settings to the newsletter add/edit settings page.
  */
 function simplenews_automatically_subscribe_form_simplenews_newsletter_edit_form_alter(&$form, $form_state) {
-    $id = $form['id']['#default_value'];
-    $synchronizer = \Drupal::service('simplenews_automatically_subscribe.services');
-    
-    $role_newsletters = \Drupal::state()->get('simplenews_roles_tids_rids', []);
-    $auto_remove = \Drupal::state()->get('simplenews_roles_auto_remove', []);
-    $form['simplenews_roles'] = [
-        '#type' => 'fieldset',
-        '#title' => t('Role synchronization'),
-        '#collapsible' => FALSE,
-        '#description' => t('This newsletter subscription list will consist of only users in the selected roles. This newsletter subscription is automatically syncronized so any users manually added to this list will be removed if they are not in any of the selected roles. If you want to change this behavior, turn off the auto remove checkbox at the bottom of the list.'),
-    ];
-    $form['simplenews_roles']['roles'] = [
-        '#type' => 'checkboxes',
-        '#title' => t('Automatically subscribe users in the following roles to this newsletter'),
-        '#options' => $synchronizer->getRoles(),
-        '#default_value' => isset($role_newsletters[$id]) && !empty($role_newsletters) ? $role_newsletters[$id] : [],
-    ];
-    $form['simplenews_roles']['auto_remove'] = [
-        '#type' => 'checkbox',
-        '#title' => 'Auto remove',
-        '#default_value' => isset($auto_remove[$id]) && !empty($auto_remove[$id]) ? $auto_remove[$id] : 1,
-    ];
-    $form['actions']['submit']['#submit'][] = 'simplenews_roles_newsletter_submit';
+  $id = $form['id']['#default_value'];
+  $synchronizer = \Drupal::service('simplenews_automatically_subscribe.services');
+  $role_newsletters = \Drupal::state()->get('simplenews_roles_tids_rids', []);
+  $auto_remove = \Drupal::state()->get('simplenews_roles_auto_remove', []);
+  $form['simplenews_roles'] = [
+    '#type' => 'fieldset',
+    '#title' => t('Role synchronization'),
+    '#collapsible' => FALSE,
+    '#description' => t('This newsletter subscription list will consist of only users in the selected roles. This newsletter subscription is automatically syncronized so any users manually added to this list will be removed if they are not in any of the selected roles. If you want to change this behavior, turn off the auto remove checkbox at the bottom of the list.'),
+  ];
+  $form['simplenews_roles']['roles'] = [
+    '#type' => 'checkboxes',
+    '#title' => t('Automatically subscribe users in the following roles to this newsletter'),
+    '#options' => $synchronizer->getRoles(),
+    '#default_value' => isset($role_newsletters[$id]) && !empty($role_newsletters) ? $role_newsletters[$id] : [],
+  ];
+  $form['simplenews_roles']['auto_remove'] = [
+    '#type' => 'checkbox',
+    '#title' => 'Auto remove',
+    '#default_value' => isset($auto_remove[$id]) && !empty($auto_remove[$id]) ? $auto_remove[$id] : 1,
+  ];
+  $form['actions']['submit']['#submit'][] = 'simplenews_automatically_subscribe_submit';
 }
 
-
 /**
- * custom submit simplenews_roles_newsletter_submit
+ * Custom submit simplenews_automatically_subscribe_submit.
  */
-function simplenews_roles_newsletter_submit($form, &$form_state) {
-    $id = $form_state->getValue('id');
-    $roles = $form_state->getValue('roles');
-    $stateRoles = \Drupal::state()->get('simplenews_roles_tids_rids', []);
-    $stateAutoRemove = \Drupal::state()->set('simplenews_roles_auto_remove', []);
-    $auto_remove[$id] = $form_state->getValue('auto_remove');
-    if(is_array($roles) && count($roles) > 0) {
-        $sync = simplenews_roles_update_subscriptions($id, $roles, $form_state->getValue('auto_remove'));
-        $stateRoles[$id] = $roles;
-        \Drupal::state()->set('simplenews_roles_tids_rids', $stateRoles);
-        \Drupal::state()->set('simplenews_roles_auto_remove', $auto_remove);
-    }
+function simplenews_automatically_subscribe_submit($form, &$form_state) {
+  $id = $form_state->getValue('id');
+  $roles = $form_state->getValue('roles');
+  $stateRoles = \Drupal::state()->get('simplenews_roles_tids_rids', []);
+  $stateAutoRemove = \Drupal::state()->set('simplenews_roles_auto_remove', []);
+  $auto_remove[$id] = $form_state->getValue('auto_remove');
+  if (is_array($roles) && count($roles) > 0) {
+    $sync = simplenews_roles_update_subscriptions($id, $roles, $form_state->getValue('auto_remove'));
+    $stateRoles[$id] = $roles;
+    \Drupal::state()->set('simplenews_roles_tids_rids', $stateRoles);
+    \Drupal::state()->set('simplenews_roles_auto_remove', $auto_remove);
+  }
 }
 
-
 /**
- * A function that synchronizes users and newsletter categories according to user roles.
+ * A synchronizes users and newsletter categories according to user roles.
  */
 function simplenews_roles_update_subscriptions($id, $roles = [], $auto_remove = TRUE) {
-    $sync = FALSE;
-    $synchronizer = \Drupal::service('simplenews_automatically_subscribe.services');
-    if (is_array($roles) && !empty($roles)) {
-        if (!in_array(\Drupal\Core\Session\AccountInterface::AUTHENTICATED_ROLE, $roles)) {
-          //unsubscribe user from newsletter when role is romoved
-          $unsubscribe_user = $synchronizer->UnsubscribeUser($auto_remove, $id, $roles); 
-        }
-        $sync = $synchronizer->SubscribeUser($id, $roles);
+  $sync = FALSE;
+  $synchronizer = \Drupal::service('simplenews_automatically_subscribe.services');
+  if (is_array($roles) && !empty($roles)) {
+    if (!in_array(AccountInterface::AUTHENTICATED_ROLE, $roles)) {
+      $unsubscribe_user = $synchronizer->unSubscribeUser($auto_remove, $id, $roles);
     }
-    return $sync;
+    $sync = $synchronizer->subscribeUser($id, $roles);
+  }
+  return $sync;
 }
-  
 
 /**
- * Implements hook_user_update
+ * Implements hook_user_update().
  */
 function simplenews_automatically_subscribe_user_update($account) {
   $synchronizer = \Drupal::service('simplenews_automatically_subscribe.services');
-  foreach(\Drupal::state()->get('simplenews_roles_tids_rids', []) as $id => $roles) {
-    if(count(array_intersect($roles, $account->getRoles())) > 0) {
+  foreach (\Drupal::state()->get('simplenews_roles_tids_rids', []) as $id => $roles) {
+    if (count(array_intersect($roles, $account->getRoles())) > 0) {
       $synchronizer->subscribe($account->mail->value, $id, FALSE, 'simplenews_automatically_subscribe');
-    } else {
+    }
+    else {
       $synchronizer->unsubscribe($account->mail->value, $id, FALSE, 'simplenews_automatically_subscribe');
     }
-  } 
+  }
 }
 
 /**
  * Implements hook_cron().
  */
 function simplenews_automatically_subscribe_cron() {
-  foreach(\Drupal::state()->get('simplenews_roles_tids_rids', []) as $key => $newsletters) {
+  foreach (\Drupal::state()->get('simplenews_roles_tids_rids', []) as $key => $newsletters) {
     simplenews_roles_update_subscriptions($key, $newsletters);
   }
 }
